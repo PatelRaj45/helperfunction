@@ -6,6 +6,8 @@ If a function gets defined once and could be used over and over, it'll go in her
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm.auto import tqdm
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 from torch import nn
 
