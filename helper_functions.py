@@ -7,6 +7,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm.auto import tqdm
+from timeit import default_timer as timer
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 from torch import nn
@@ -417,3 +418,15 @@ def make_predictions(model : torch.nn.Module,
 
   # Stack the pred probs to turn list to tensors
   return torch.stack(pred_probs)
+
+
+def print_train_time(start : float,
+                     end : float,
+                     device : torch.device = None):
+  """
+  Prints differences between start and end Time
+  """
+  total_time=end-start
+  print(f"Train time on {device} : {total_time:.3f} seconds")
+  return total_time
+
