@@ -3,6 +3,29 @@ A series of helper functions used throughout the course.
 
 If a function gets defined once and could be used over and over, it'll go in here.
 """
+
+# import requests
+# from pathlib import Path
+
+# # Download helper functions from your new GitHub repo (if not already downloaded)
+# helper_functions_url = "https://raw.githubusercontent.com/PatelRaj45/helperfunction/main/helper_functions.py"
+# helper_functions_path = "helper_functions.py"
+
+# if Path(helper_functions_path).is_file():
+#     print(f"{helper_functions_path} already exists, skipping download")
+# else:
+#     print(f"Downloading {helper_functions_path}")
+#     request = requests.get(helper_functions_url)
+#     with open(helper_functions_path, "wb") as f:
+#         f.write(request.content)
+
+# # Import functions from helper_functions.py
+# from helper_functions import accuracy_fn, train_step, test_step, make_predictions, eval_model,print_train_time
+
+
+
+
+
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
