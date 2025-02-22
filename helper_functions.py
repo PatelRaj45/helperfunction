@@ -296,137 +296,159 @@ def download_data(source: str,
     
     return image_path
 
+def accuracy_fn(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
+    """
+    Calculates accuracy between truth labels and predictions.
 
-def train_step(model : torch.nn.Module,
-               data_loader : torch.utils.data.DataLoader,
-               loss_fn : torch.nn.Module,
-               optimizer : torch.optim.Optimizer,
+    Args:
+        y_true (torch.Tensor): Ground truth labels.
+        y_pred (torch.Tensor): Predicted labels.
+
+    Returns:
+        float: Accuracy percentage (0-100).
+    """
+    correct = torch.eq(y_true, y_pred).sum().item()
+    acc = (correct / len(y_pred)) * 100
+    return acc
+
+
+def train_step(model: torch.nn.Module,
+               data_loader: torch.utils.data.DataLoader,
+               loss_fn: torch.nn.Module,
+               optimizer: torch.optim.Optimizer,
                accuracy_fn,
-               device : torch.device = device):
-  # Training
-  train_loss,train_acc=0,0
-  # Add a loop to loop through training batches
-  for batch, (X,y) in enumerate(data_loader):
-    X=X.to(device)
-    y=y.to(device)
-    model.train()
-    # 1.Forward pass
-    y_logit=model(X)
+               device: torch.device = device):
+    """
+    Performs a single training step.
 
-    # 2.Loss
-    loss=loss_fn(y_logit,y)
-    train_loss += loss
-    acc=accuracy_fn(y_true=y,
-                          y_pred=torch.argmax(y_logit,dim=1))
-    train_acc  += acc
-
-    # 3. optimizer zero
-    optimizer.zero_grad()
-
-    # 4. loss backward
-    loss.backward()
-
-    # 5. optimizer Step
-    optimizer.step()
-
-  train_loss /= len(data_loader) # per batch
-  train_acc /=len(data_loader)  # per batch
-  print(f"Train loss : {train_loss:.5f} | Train acc : {train_acc:.2f}%")
+    Args:
+        model (torch.nn.Module): Model to train.
+        data_loader (torch.utils.data.DataLoader): DataLoader for training data.
+        loss_fn (torch.nn.Module): Loss function.
+        optimizer (torch.optim.Optimizer): Optimizer for updating model weights.
+        accuracy_fn (function): Function to compute accuracy.
+        device (torch.device, optional): Device to run training on. Defaults to device.
+    """
+    train_loss, train_acc = 0, 0
+    for batch, (X, y) in enumerate(data_loader):
+        X, y = X.to(device), y.to(device)
+        model.train()
+        y_logit = model(X)
+        loss = loss_fn(y_logit, y)
+        train_loss += loss.item()
+        acc = accuracy_fn(y_true=y, y_pred=torch.argmax(y_logit, dim=1))
+        train_acc += acc
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    train_loss /= len(data_loader)
+    train_acc /= len(data_loader)
+    print(f"Train loss: {train_loss:.5f} | Train acc: {train_acc:.2f}%")
 
 
-# Testing loop
-def test_step(model : torch.nn.Module,
-              data_loader : torch.utils.data.DataLoader,
-              loss_fn : torch.nn.Module,
+def test_step(model: torch.nn.Module,
+              data_loader: torch.utils.data.DataLoader,
+              loss_fn: torch.nn.Module,
               accuracy_fn,
-              device : torch.device = device):
-  test_loss,test_acc=0,0
-  model.eval()
-  with torch.inference_mode():
-    for X_test,y_test in data_loader :
-      X_test=X_test.to(device)
-      y_test=y_test.to(device)
-      # 1.Forward pass
-      test_logit=model(X_test)
-      # 2.Loss and acc
-      loss=loss_fn(test_logit,y_test)
-      test_loss += loss
+              device: torch.device = device):
+    """
+    Performs a single test step.
 
-      acc=accuracy_fn(y_true=y_test,
-                      y_pred=torch.argmax(test_logit,dim=1))
-      test_acc +=acc
-
-    # Loss and acc of testing per batch
-    test_loss /= len(data_loader)
-    test_acc /= len(data_loader)
-
-    # Print out what's happening
-    print(f" Test loss : {test_loss:.4f} Test acc : {test_acc:.2f}%")
-
-
-
-def eval_model(
-    model : torch.nn.Module,
-    data_loader : torch.utils.data.DataLoader,
-    loss_fn : torch.nn.Module,
-    accuracy_fn,
-    device : torch.device = device):
-  """
-  Returns a dictionary containing results of model predicting on a data loader
-  """
-  loss,acc=0,0
-  model.eval()
-  with torch.inference_mode():
-    for X,y in tqdm(data_loader):
-      X=X.to(device)
-      y=y.to(device)
-      # Forward pass
-      y_logit=model(X)
-      # loss and acc
-      loss +=loss_fn(y_logit,y)
-      acc +=accuracy_fn(y_true=y,
-                        y_pred=torch.argmax(y_logit,dim=1))
-    # loss and acc per batch
-    loss /= len(data_loader)
-    acc /= len(data_loader)
-
-  return {
-      "model_name" : model.__class__.__name__,
-      "model_loss" : loss.item(),
-      "model_acc" : acc
-  }
-
-def make_predictions(model : torch.nn.Module,
-                     data : list,
-                     device : torch.device =device):
-  pred_probs=[]
-  model.to(device)
-  model.eval()
-  with torch.inference_mode():
-    for sample in data:
-      # Prepare the sample add a batch dimesions and pass through the target device
-      sample=torch.unsqueeze(sample,dim=0).to(device)
-
-      # Forward pass (model output raw logits)
-      pred_logit=model(sample)
-
-      # Get the prediction probability (logits -> pred prob ) {softmax}
-      pred_prob=torch.softmax(pred_logit.squeeze(),dim=0)
-
-      # Get pred prob off the gpu for further calculations
-      pred_probs.append(pred_prob.cpu())
-
-  # Stack the pred probs to turn list to tensors
-  return torch.stack(pred_probs)
+    Args:
+        model (torch.nn.Module): Model to evaluate.
+        data_loader (torch.utils.data.DataLoader): DataLoader for test data.
+        loss_fn (torch.nn.Module): Loss function.
+        accuracy_fn (function): Function to compute accuracy.
+        device (torch.device, optional): Device to run testing on. Defaults to device.
+    """
+    test_loss, test_acc = 0, 0
+    model.eval()
+    with torch.inference_mode():
+        for X_test, y_test in data_loader:
+            X_test, y_test = X_test.to(device), y_test.to(device)
+            test_logit = model(X_test)
+            loss = loss_fn(test_logit, y_test)
+            test_loss += loss.item()
+            acc = accuracy_fn(y_true=y_test, y_pred=torch.argmax(test_logit, dim=1))
+            test_acc += acc
+        test_loss /= len(data_loader)
+        test_acc /= len(data_loader)
+    print(f"Test loss: {test_loss:.4f} | Test acc: {test_acc:.2f}%")
 
 
-def print_train_time(start : float,
-                     end : float,
-                     device : torch.device = None):
-  """
-  Prints differences between start and end Time
-  """
-  total_time=end-start
-  print(f"Train time on {device} : {total_time:.3f} seconds")
-  return total_time
+def eval_model(model: torch.nn.Module,
+               data_loader: torch.utils.data.DataLoader,
+               loss_fn: torch.nn.Module,
+               accuracy_fn,
+               device: torch.device = device) -> dict:
+    """
+    Evaluates a model on a given dataset.
 
+    Args:
+        model (torch.nn.Module): Model to evaluate.
+        data_loader (torch.utils.data.DataLoader): DataLoader for evaluation data.
+        loss_fn (torch.nn.Module): Loss function.
+        accuracy_fn (function): Function to compute accuracy.
+        device (torch.device, optional): Device to run evaluation on. Defaults to device.
+
+    Returns:
+        dict: Dictionary containing model name, loss, and accuracy.
+    """
+    loss, acc = 0, 0
+    model.eval()
+    with torch.inference_mode():
+        for X, y in tqdm(data_loader):
+            X, y = X.to(device), y.to(device)
+            y_logit = model(X)
+            loss += loss_fn(y_logit, y).item()
+            acc += accuracy_fn(y_true=y, y_pred=torch.argmax(y_logit, dim=1))
+        loss /= len(data_loader)
+        acc /= len(data_loader)
+    return {
+        "model_name": model.__class__.__name__,
+        "model_loss": loss,
+        "model_acc": acc
+    }
+
+
+def make_predictions(model: torch.nn.Module,
+                     data: list,
+                     device: torch.device = device) -> torch.Tensor:
+    """
+    Makes predictions on a given dataset.
+
+    Args:
+        model (torch.nn.Module): Trained model.
+        data (list): List of input data samples.
+        device (torch.device, optional): Device for inference. Defaults to device.
+
+    Returns:
+        torch.Tensor: Stacked tensor of prediction probabilities.
+    """
+    pred_probs = []
+    model.to(device)
+    model.eval()
+    with torch.inference_mode():
+        for sample in data:
+            sample = torch.unsqueeze(sample, dim=0).to(device)
+            pred_logit = model(sample)
+            pred_prob = torch.softmax(pred_logit.squeeze(), dim=0)
+            pred_probs.append(pred_prob.cpu())
+    return torch.stack(pred_probs)
+
+
+def print_train_time(start: float, end: float, device: torch.device = None) -> float:
+    """
+    Prints and returns the total training time.
+
+    Args:
+        start (float): Start time of computation.
+        end (float): End time of computation.
+        device (torch.device, optional): Device the computation ran on. Defaults to None.
+
+    Returns:
+        float: Total training time in seconds.
+    """
+    total_time = end - start
+    print(f"Train time on {device}: {total_time:.3f} seconds")
+    return total_time
