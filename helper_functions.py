@@ -4,6 +4,8 @@ A series of helper functions used throughout the course.
 If a function gets defined once and could be used over and over, it'll go in here.
 """
 
+# HELPER FUNCTION
+
 # import requests
 # from pathlib import Path
 
@@ -22,6 +24,25 @@ If a function gets defined once and could be used over and over, it'll go in her
 # # Import functions from helper_functions.py
 # from helper_functions import accuracy_fn, train_step, test_step, make_predictions, eval_model,print_train_time
 
+
+
+
+# # Download custom image
+
+# import requests
+
+# # Setup custom image path
+# custom_image_path = data_path / "04-pizza-dad.jpeg"
+
+# # Download the image if it doesn't already exist
+# if not custom_image_path.is_file():
+#   with open(custom_image_path, "wb") as f:
+#     # When downloading from GitHub, need to use the "raw" file link
+#     request = requests.get("https://raw.githubusercontent.com/mrdbourke/pytorch-deep-learning/main/images/04-pizza-dad.jpeg")
+#     print(f"Downloading {custom_image_path}...")
+#     f.write(request.content)
+# else:
+#   print(f"{custom_image_path} already exists, skipping download...")
 
 
 
@@ -334,71 +355,6 @@ def accuracy_fn(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
     acc = (correct / len(y_pred)) * 100
     return acc
 
-
-def train_step(model: torch.nn.Module,
-               data_loader: torch.utils.data.DataLoader,
-               loss_fn: torch.nn.Module,
-               optimizer: torch.optim.Optimizer,
-               accuracy_fn,
-               device: torch.device = device):
-    """
-    Performs a single training step.
-
-    Args:
-        model (torch.nn.Module): Model to train.
-        data_loader (torch.utils.data.DataLoader): DataLoader for training data.
-        loss_fn (torch.nn.Module): Loss function.
-        optimizer (torch.optim.Optimizer): Optimizer for updating model weights.
-        accuracy_fn (function): Function to compute accuracy.
-        device (torch.device, optional): Device to run training on. Defaults to device.
-    """
-    train_loss, train_acc = 0, 0
-    for batch, (X, y) in enumerate(data_loader):
-        X, y = X.to(device), y.to(device)
-        model.train()
-        y_logit = model(X)
-        loss = loss_fn(y_logit, y)
-        train_loss += loss.item()
-        acc = accuracy_fn(y_true=y, y_pred=torch.argmax(y_logit, dim=1))
-        train_acc += acc
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-    train_loss /= len(data_loader)
-    train_acc /= len(data_loader)
-    print(f"Train loss: {train_loss:.5f} | Train acc: {train_acc:.2f}%")
-
-
-def test_step(model: torch.nn.Module,
-              data_loader: torch.utils.data.DataLoader,
-              loss_fn: torch.nn.Module,
-              accuracy_fn,
-              device: torch.device = device):
-    """
-    Performs a single test step.
-
-    Args:
-        model (torch.nn.Module): Model to evaluate.
-        data_loader (torch.utils.data.DataLoader): DataLoader for test data.
-        loss_fn (torch.nn.Module): Loss function.
-        accuracy_fn (function): Function to compute accuracy.
-        device (torch.device, optional): Device to run testing on. Defaults to device.
-    """
-    test_loss, test_acc = 0, 0
-    model.eval()
-    with torch.inference_mode():
-        for X_test, y_test in data_loader:
-            X_test, y_test = X_test.to(device), y_test.to(device)
-            test_logit = model(X_test)
-            loss = loss_fn(test_logit, y_test)
-            test_loss += loss.item()
-            acc = accuracy_fn(y_true=y_test, y_pred=torch.argmax(test_logit, dim=1))
-            test_acc += acc
-        test_loss /= len(data_loader)
-        test_acc /= len(data_loader)
-    print(f"Test loss: {test_loss:.4f} | Test acc: {test_acc:.2f}%")
-
-
 def eval_model(model: torch.nn.Module,
                data_loader: torch.utils.data.DataLoader,
                loss_fn: torch.nn.Module,
@@ -475,3 +431,148 @@ def print_train_time(start: float, end: float, device: torch.device = None) -> f
     total_time = end - start
     print(f"Train time on {device}: {total_time:.3f} seconds")
     return total_time
+
+import torch
+import torchvision
+from torch import nn
+import matplotlib.pyplot as plt
+import numpy as np
+import requests
+from pathlib import Path
+from tqdm.auto import tqdm
+
+
+def train_step(model: torch.nn.Module,
+               dataloader: torch.utils.data.DataLoader,
+               loss_fn: torch.nn.Module,
+               optimizer: torch.optim.Optimizer,
+               device: torch.device):
+    """
+    Performs a single training step.
+    
+    Args:
+        model (torch.nn.Module): The PyTorch model to train.
+        dataloader (torch.utils.data.DataLoader): Dataloader for training data.
+        loss_fn (torch.nn.Module): Loss function.
+        optimizer (torch.optim.Optimizer): Optimizer for model parameters.
+        device (torch.device): Device to run training on (CPU or GPU).
+    
+    Returns:
+        float: Average training loss for the epoch.
+    """
+    model.train()
+    train_loss = 0
+    for batch, (X, y) in enumerate(dataloader):
+        X, y = X.to(device), y.to(device)
+        optimizer.zero_grad()
+        y_pred = model(X)
+        loss = loss_fn(y_pred, y)
+        loss.backward()
+        optimizer.step()
+        train_loss += loss.item()
+    return train_loss / len(dataloader)
+
+
+def test_step(model: torch.nn.Module,
+              dataloader: torch.utils.data.DataLoader,
+              loss_fn: torch.nn.Module,
+              device: torch.device):
+    """
+    Performs a single testing step.
+    
+    Args:
+        model (torch.nn.Module): The trained PyTorch model.
+        dataloader (torch.utils.data.DataLoader): Dataloader for test data.
+        loss_fn (torch.nn.Module): Loss function.
+        device (torch.device): Device to run testing on (CPU or GPU).
+    
+    Returns:
+        tuple: Average test loss and accuracy for the epoch.
+    """
+    model.eval()
+    test_loss, test_acc = 0, 0
+    with torch.inference_mode():
+        for X, y in dataloader:
+            X, y = X.to(device), y.to(device)
+            y_pred = model(X)
+            loss = loss_fn(y_pred, y)
+            test_loss += loss.item()
+            test_acc += (y_pred.argmax(dim=1) == y).sum().item() / len(y)
+    return test_loss / len(dataloader), test_acc / len(dataloader)
+
+
+def train(model: torch.nn.Module,
+          train_dataloader: torch.utils.data.DataLoader,
+          test_dataloader: torch.utils.data.DataLoader,
+          optimizer: torch.optim.Optimizer,
+          loss_fn: torch.nn.Module,
+          epochs: int,
+          device: torch.device):
+    """
+    Trains and evaluates a PyTorch model.
+    
+    Args:
+        model (torch.nn.Module): The PyTorch model to train.
+        train_dataloader (torch.utils.data.DataLoader): Training data loader.
+        test_dataloader (torch.utils.data.DataLoader): Test data loader.
+        optimizer (torch.optim.Optimizer): Optimizer for updating model weights.
+        loss_fn (torch.nn.Module): Loss function to minimize.
+        epochs (int): Number of training epochs.
+        device (torch.device): Device to run training on (CPU or GPU).
+    
+    Returns:
+        dict: Dictionary containing training history with keys 'train_loss', 'test_loss', and 'test_acc'.
+    """
+    results = {'train_loss': [], 'test_loss': [], 'test_acc': []}
+    for epoch in tqdm(range(epochs)):
+        train_loss = train_step(model, train_dataloader, loss_fn, optimizer, device)
+        test_loss, test_acc = test_step(model, test_dataloader, loss_fn, device)
+        results['train_loss'].append(train_loss)
+        results['test_loss'].append(test_loss)
+        results['test_acc'].append(test_acc)
+        print(f"Epoch {epoch + 1}/{epochs}: Train Loss = {train_loss:.4f}, Test Loss = {test_loss:.4f}, Test Acc = {test_acc:.4f}")
+    return results
+
+
+def pred_on_custom_image(model: torch.nn.Module,
+                          image_path: str,
+                          transform: torchvision.transforms.Compose,
+                          class_names: list,
+                          device: torch.device):
+    """
+    Makes a prediction on a custom image.
+    
+    Args:
+        model (torch.nn.Module): Trained PyTorch model.
+        image_path (str): Path to the image.
+        transform (torchvision.transforms.Compose): Transformations to apply to the image.
+        class_names (list): List of class names.
+        device (torch.device): Device to run inference on (CPU or GPU).
+    
+    Returns:
+        str: Predicted class label.
+    """
+    from PIL import Image
+    model.eval()
+    image = Image.open(image_path)
+    transformed_image = transform(image).unsqueeze(0).to(device)
+    with torch.inference_mode():
+        pred_logits = model(transformed_image)
+        pred_class = class_names[pred_logits.argmax(dim=1).item()]
+    return pred_class
+
+
+def find_classes(directory: str):
+    """
+    Finds class names in a dataset directory.
+    
+    Args:
+        directory (str): Path to the dataset directory.
+    
+    Returns:
+        tuple: A tuple containing a list of class names and a dictionary mapping class names to indices.
+    """
+    classes = [d.name for d in Path(directory).iterdir() if d.is_dir()]
+    classes.sort()
+    class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+    return classes, class_to_idx
